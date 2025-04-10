@@ -20,6 +20,7 @@ jobs:
       SWIFT_VERSIONS: |
         6.0.3
         6.1.0
+        main-snapshot-2025-12-11
     steps:
       - id: set-matrix
         run: |
@@ -82,6 +83,9 @@ jobs:
     name: Test (Alpine, Swift ${{ matrix.swift-version }})
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: apk add --no-cache bash curl jq gnupg
 
       - name: Setup Swift
         uses: vapor/swiftly-action@v0.2
