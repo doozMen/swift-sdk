@@ -86,7 +86,7 @@ struct ResourceTests {
         let emptyParams = ListResources.Parameters()
         #expect(emptyParams.cursor == nil)
     }
-    
+
     @Test("ListResources request decoding with omitted params")
     func testListResourcesRequestDecodingWithOmittedParams() throws {
         // Test decoding when params field is omitted
@@ -101,7 +101,7 @@ struct ResourceTests {
         #expect(decoded.id == "test-id")
         #expect(decoded.method == ListResources.name)
     }
-    
+
     @Test("ListResources request decoding with null params")
     func testListResourcesRequestDecodingWithNullParams() throws {
         // Test decoding when params field is null

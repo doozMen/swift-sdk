@@ -231,7 +231,7 @@ struct InMemoryTransportTests {
 
         // Disconnect client (peer)
         await clientTransport.disconnect()
-        
+
         receiveTask.cancel()
     }
 

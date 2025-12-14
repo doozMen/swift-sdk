@@ -16,9 +16,10 @@ import Logging
             completion: NWConnection.SendCompletion)
         func receive(
             minimumIncompleteLength: Int, maximumLength: Int,
-            completion: @escaping @Sendable (
-                Data?, NWConnection.ContentContext?, Bool, NWError?
-            ) -> Void)
+            completion:
+                @escaping @Sendable (
+                    Data?, NWConnection.ContentContext?, Bool, NWError?
+                ) -> Void)
     }
 
     /// Extension to conform NWConnection to internal NetworkConnectionProtocol
@@ -359,7 +360,9 @@ import Logging
         /// Handles when the connection reaches the ready state
         ///
         /// - Parameter continuation: The continuation to resume when connection is ready
-        private func handleConnectionReady(continuation: CheckedContinuation<Void, Swift.Error>)
+        private func handleConnectionReady(
+            continuation: CheckedContinuation<Void, Swift.Error>
+        )
             async
         {
             if !connectionContinuationResumed {
@@ -466,7 +469,9 @@ import Logging
         /// Handles connection cancellation
         ///
         /// - Parameter continuation: The continuation to resume with cancellation error
-        private func handleConnectionCancelled(continuation: CheckedContinuation<Void, Swift.Error>)
+        private func handleConnectionCancelled(
+            continuation: CheckedContinuation<Void, Swift.Error>
+        )
             async
         {
             if !connectionContinuationResumed {
