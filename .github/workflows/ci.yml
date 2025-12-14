@@ -11,28 +11,35 @@ permissions:
   pull-requests: write
 
 jobs:
-  test:
-    timeout-minutes: 5
+  setup:
+    name: Setup
+    runs-on: ubuntu-latest
+    outputs:
+      swift-versions: ${{ steps.set-matrix.outputs.swift-versions }}
+    env:
+      SWIFT_VERSIONS: |
+        6.0.3
+        6.1.0
+        main-snapshot-2025-12-11
+    steps:
+      - id: set-matrix
+        run: |
+          # Convert multi-line string to JSON array (jq is pre-installed on GitHub runners)
+          VERSIONS=$(echo "$SWIFT_VERSIONS" | jq -R -s -c 'split("\n") | map(select(length > 0))')
+          echo "swift-versions=$VERSIONS" >> $GITHUB_OUTPUT
+
+  test-macos:
+    name: Test (macOS, Swift ${{ matrix.swift-version }})
+    needs: setup
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
-        swift-version:
-          - 6.0.3
-          - 6.1.0
-
-    runs-on: ${{ matrix.os }}
-    name: Test (${{ matrix.os }}, Swift ${{ matrix.swift-version }})
-
+        swift-version: ${{ fromJson(needs.setup.outputs.swift-versions) }}
+    runs-on: macos-latest
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Swift on Linux
-        if: matrix.os == 'ubuntu-latest'
-        uses: vapor/swiftly-action@v0.2
-        with:
-          toolchain: ${{ matrix.swift-version }}
-      - name: Setup Swift on macOS
-        if: matrix.os == 'macos-latest'
+      - name: Setup Swift
         uses: swift-actions/setup-swift@v2
         with:
           swift-version: ${{ matrix.swift-version }}
@@ -43,23 +50,98 @@ jobs:
       - name: Run tests
         run: swift test -v
 
-  static-linux-sdk-build:
-    name: Linux Static SDK Build (${{ matrix.swift-version }} - ${{ matrix.os }})
+  test-ubuntu:
+    name: Test (Ubuntu, Swift ${{ matrix.swift-version }})
+    needs: setup
     strategy:
       matrix:
-        os: [ubuntu-latest]
-        swift-version:
-          - 6.1.2
-    runs-on: ${{ matrix.os }}
-    container: swift:${{ matrix.swift-version }}-noble
-    timeout-minutes: 30
+        swift-version: ${{ fromJson(needs.setup.outputs.swift-versions) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
-      - name: Check out code
-        uses: actions/checkout@v4
-      - name: Install static SDK and build
-        env:
-          BUILD_FLAGS: ""
+      - uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: vapor/swiftly-action@v0.2
+        with:
+          toolchain: ${{ matrix.swift-version }}
+
+      - name: Build
+        run: swift build -v
+
+      - name: Run tests
+        run: swift test -v
+
+  build-for-alpine:
+    name: Build for Alpine (Ubuntu, Swift 6.1)
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Swift
+        uses: vapor/swiftly-action@v0.2
+        with:
+          toolchain: 6.1.0
+
+      - name: Install Static Linux SDK
         run: |
-          which curl || (apt -q update && apt -yq install curl)
-          curl -s --retry 3 https://raw.githubusercontent.com/swiftlang/github-workflows/refs/heads/main/.github/workflows/scripts/install-and-build-with-sdk.sh | \
-          bash -s -- --static --flags="$BUILD_FLAGS" ${{ matrix.swift-version }}
+          # Install the static Linux SDK for musl target
+          # https://www.swift.org/install/linux/debian/12/#versions
+          swift sdk install https://download.swift.org/swift-6.1-release/static-sdk/swift-6.1-RELEASE/swift-6.1-RELEASE_static-linux-0.0.1.artifactbundle.tar.gz --checksum 111c6f7d280a651208b8c74c0521dd99365d785c1976a6e23162f55f65379ac6
+
+          # Verify installation
+          swift sdk list
+
+      - name: Build for x86_64-musl
+        run: |
+          swift build --swift-sdk x86_64-swift-linux-musl -v
+          swift test --swift-sdk x86_64-swift-linux-musl -v
+          # List contents to verify test binary location
+          find .build/x86_64-swift-linux-musl -name "*Test*" -type f | sort
+          ls -la .build/x86_64-swift-linux-musl/debug
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpine-binaries-6.1.0
+          path: .build/x86_64-swift-linux-musl/debug
+
+  test-alpine:
+    name: Test (Alpine, Swift 6.1)
+    needs: [setup, build-for-alpine]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    container: alpine:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: apk add --no-cache bash
+
+      - name: Download compiled binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: alpine-binaries-6.1.0
+          path: .build/debug
+
+      - name: Set permissions
+        shell: bash
+        run: |
+          chmod +x .build/debug/*
+          ls -la .build/debug
+
+      - name: Run tests
+        shell: bash
+        run: |
+          # Try to find and run the test executable
+          TEST_EXEC=$(find .build/debug -name "*Test*" -type f | head -1)
+          if [ -n "$TEST_EXEC" ]; then
+            echo "Running test executable: $TEST_EXEC"
+            chmod +x "$TEST_EXEC"
+            $TEST_EXEC
+          else
+            echo "Test executable not found!"
+            ls -la .build/debug
+            exit 1
+          fi
