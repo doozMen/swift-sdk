@@ -102,8 +102,6 @@ import struct Foundation.Data
             Task {
                 await readLoop()
             }
-
-            messageContinuation.finish()
         }
 
         /// Configures a file descriptor for non-blocking I/O
