@@ -332,7 +332,7 @@ import Logging
                 connection.stateUpdateHandler = { [weak self] state in
                     guard let self = self else { return }
 
-                    Task { @MainActor in
+                    Task {
                         switch state {
                         case .ready:
                             await self.handleConnectionReady(continuation: continuation)
@@ -565,9 +565,6 @@ import Logging
             var messageWithNewline = message
             messageWithNewline.append(UInt8(ascii: "\n"))
 
-            // Use a local actor-isolated variable to track continuation state
-            var sendContinuationResumed = false
-
             try await withCheckedThrowingContinuation {
                 [weak self] (continuation: CheckedContinuation<Void, Swift.Error>) in
                 guard let self = self else {
@@ -582,49 +579,62 @@ import Logging
                     completion: .contentProcessed { [weak self] error in
                         guard let self = self else { return }
 
-                        Task { @MainActor in
-                            if !sendContinuationResumed {
-                                sendContinuationResumed = true
-                                if let error = error {
-                                    self.logger.error("Send error: \(error)")
+                        // NWConnection guarantees this completion is called exactly once.
+                        // CheckedContinuation will crash if resumed twice (correct behavior).
+                        // Run on actor's executor to safely access actor-isolated state.
+                        Task {
+                            await self.handleSendCompletion(error: error, continuation: continuation)
+                        }
+                    })
+            }
+        }
 
-                                    // Check if we should attempt to reconnect on send failure
-                                    let isStopping = await self.isStopping  // Await actor-isolated property
-                                    if !isStopping && self.reconnectionConfig.enabled {
-                                        let isConnected = await self.isConnected
-                                        if isConnected {
-                                            if error.isConnectionLost {
-                                                self.logger.warning(
-                                                    "Connection appears broken, will attempt to reconnect..."
-                                                )
+        /// Handles the completion of a send operation
+        ///
+        /// - Parameters:
+        ///   - error: The error from the send operation, if any
+        ///   - continuation: The continuation to resume
+        private func handleSendCompletion(
+            error: NWError?,
+            continuation: CheckedContinuation<Void, Swift.Error>
+        ) async {
+            if let error = error {
+                logger.error("Send error: \(error)")
 
-                                                // Schedule connection restart
-                                                Task { [weak self] in  // Operate on self's executor
-                                                    guard let self = self else { return }
+                // Check if we should attempt to reconnect on send failure
+                if !isStopping && reconnectionConfig.enabled && isConnected {
+                    if error.isConnectionLost {
+                        logger.warning(
+                            "Connection appears broken, will attempt to reconnect..."
+                        )
 
-                                                    await self.setIsConnected(false)
+                        // Schedule connection restart
+                        Task { [weak self] in
+                            guard let self = self else { return }
 
-                                                    try? await Task.sleep(for: .milliseconds(500))
+                            await self.setIsConnected(false)
 
-                                                    let currentIsStopping = await self.isStopping
-                                                    if !currentIsStopping {
-                                                        // Cancel the connection, then attempt to reconnect fully.
-                                                        self.connection.cancel()
-                                                        try? await self.connect()
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                            try? await Task.sleep(for: .milliseconds(500))
 
-                                    continuation.resume(
-                                        throwing: MCPError.internalError("Send error: \(error)"))
-                                } else {
-                                    continuation.resume()
+                            let currentIsStopping = await self.isStopping
+                            if !currentIsStopping {
+                                // Cancel the connection, then attempt to reconnect fully.
+                                self.connection.cancel()
+                                do {
+                                    try await self.connect()
+                                } catch {
+                                    self.logger.error(
+                                        "Reconnection failed after send error: \(error)")
                                 }
                             }
                         }
-                    })
+                    }
+                }
+
+                continuation.resume(
+                    throwing: MCPError.internalError("Send error: \(error)"))
+            } else {
+                continuation.resume()
             }
         }
 
@@ -729,9 +739,13 @@ import Logging
                                     if !isStopping {
                                         // Cancel the connection, then attempt to reconnect fully.
                                         self.connection.cancel()
-                                        try? await self.connect()
-
-                                        // If connect succeeded, a new receive loop will be started
+                                        do {
+                                            try await self.connect()
+                                            // If connect succeeded, a new receive loop will be started
+                                        } catch {
+                                            self.logger.error(
+                                                "Reconnection failed after network error: \(error)")
+                                        }
                                     }
                                 }
 
@@ -776,7 +790,12 @@ import Logging
 
                                 if !isStopping {
                                     self.connection.cancel()
-                                    try? await connect()
+                                    do {
+                                        try await connect()
+                                    } catch {
+                                        self.logger.error(
+                                            "Reconnection failed after receive error: \(error)")
+                                    }
                                 }
                             }
 
@@ -801,8 +820,6 @@ import Logging
         /// - Returns: The received data chunk
         /// - Throws: Network errors or transport failures
         private func receiveData() async throws -> Data {
-            var receiveContinuationResumed = false
-
             return try await withCheckedThrowingContinuation {
                 [weak self] (continuation: CheckedContinuation<Data, Swift.Error>) in
                 guard let self = self else {
@@ -812,24 +829,47 @@ import Logging
 
                 let maxLength = bufferConfig.maxReceiveBufferSize ?? Int.max
                 connection.receive(minimumIncompleteLength: 1, maximumLength: maxLength) {
-                    content, _, isComplete, error in
-                    Task { @MainActor in
-                        if !receiveContinuationResumed {
-                            receiveContinuationResumed = true
-                            if let error = error {
-                                continuation.resume(throwing: MCPError.transportError(error))
-                            } else if let content = content {
-                                continuation.resume(returning: content)
-                            } else if isComplete {
-                                self.logger.trace("Connection completed by peer")
-                                continuation.resume(throwing: MCPError.connectionClosed)
-                            } else {
-                                // EOF: Resume with empty data instead of throwing an error
-                                continuation.resume(returning: Data())
-                            }
-                        }
+                    [weak self] content, _, isComplete, error in
+                    guard let self = self else { return }
+
+                    // NWConnection guarantees this completion is called exactly once.
+                    // CheckedContinuation will crash if resumed twice (correct behavior).
+                    // Run on actor's executor to safely access actor-isolated state.
+                    Task {
+                        await self.handleReceiveCompletion(
+                            content: content,
+                            isComplete: isComplete,
+                            error: error,
+                            continuation: continuation
+                        )
                     }
                 }
+            }
+        }
+
+        /// Handles the completion of a receive operation
+        ///
+        /// - Parameters:
+        ///   - content: The received data, if any
+        ///   - isComplete: Whether the connection is complete
+        ///   - error: The error from the receive operation, if any
+        ///   - continuation: The continuation to resume
+        private func handleReceiveCompletion(
+            content: Data?,
+            isComplete: Bool,
+            error: NWError?,
+            continuation: CheckedContinuation<Data, Swift.Error>
+        ) async {
+            if let error = error {
+                continuation.resume(throwing: MCPError.transportError(error))
+            } else if let content = content {
+                continuation.resume(returning: content)
+            } else if isComplete {
+                logger.trace("Connection completed by peer")
+                continuation.resume(throwing: MCPError.connectionClosed)
+            } else {
+                // EOF: Resume with empty data instead of throwing an error
+                continuation.resume(returning: Data())
             }
         }
 
