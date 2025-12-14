@@ -559,8 +559,12 @@ public actor HTTPClientTransport: Transport {
                         messageContinuation.yield(data)
                     }
                 }
+                // Signal end of stream when SSE connection closes normally
+                logger.debug("SSE stream completed normally")
+                messageContinuation.finish()
             } catch {
                 logger.error("Error processing SSE events: \(error)")
+                messageContinuation.finish(throwing: error)
                 throw error
             }
         }
