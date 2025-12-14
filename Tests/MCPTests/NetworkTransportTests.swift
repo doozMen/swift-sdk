@@ -63,9 +63,10 @@ import Testing
         func receive(
             minimumIncompleteLength: Int,
             maximumLength: Int,
-            completion: @escaping @Sendable (
-                Data?, NWConnection.ContentContext?, Bool, NWError?
-            ) -> Void
+            completion:
+                @escaping @Sendable (
+                    Data?, NWConnection.ContentContext?, Bool, NWError?
+                ) -> Void
         ) {
             Task { @MainActor in
                 if self.mockState == .cancelled {

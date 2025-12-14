@@ -33,49 +33,49 @@ public enum Value: Hashable, Sendable {
     /// Returns the `Bool` value if the value is a `bool`,
     /// otherwise returns `nil`.
     public var boolValue: Bool? {
-        guard case let .bool(value) = self else { return nil }
+        guard case .bool(let value) = self else { return nil }
         return value
     }
 
     /// Returns the `Int` value if the value is an `integer`,
     /// otherwise returns `nil`.
     public var intValue: Int? {
-        guard case let .int(value) = self else { return nil }
+        guard case .int(let value) = self else { return nil }
         return value
     }
 
     /// Returns the `Double` value if the value is a `double`,
     /// otherwise returns `nil`.
     public var doubleValue: Double? {
-        guard case let .double(value) = self else { return nil }
+        guard case .double(let value) = self else { return nil }
         return value
     }
 
     /// Returns the `String` value if the value is a `string`,
     /// otherwise returns `nil`.
     public var stringValue: String? {
-        guard case let .string(value) = self else { return nil }
+        guard case .string(let value) = self else { return nil }
         return value
     }
 
     /// Returns the data value and optional MIME type if the value is `data`,
     /// otherwise returns `nil`.
     public var dataValue: (mimeType: String?, Data)? {
-        guard case let .data(mimeType: mimeType, data) = self else { return nil }
+        guard case .data(mimeType: let mimeType, let data) = self else { return nil }
         return (mimeType: mimeType, data)
     }
 
     /// Returns the `[Value]` value if the value is an `array`,
     /// otherwise returns `nil`.
     public var arrayValue: [Value]? {
-        guard case let .array(value) = self else { return nil }
+        guard case .array(let value) = self else { return nil }
         return value
     }
 
     /// Returns the `[String: Value]` value if the value is an `object`,
     /// otherwise returns `nil`.
     public var objectValue: [String: Value]? {
-        guard case let .object(value) = self else { return nil }
+        guard case .object(let value) = self else { return nil }
         return value
     }
 }
@@ -96,7 +96,7 @@ extension Value: Codable {
             self = .double(value)
         } else if let value = try? container.decode(String.self) {
             if Data.isDataURL(string: value),
-                case let (mimeType, data)? = Data.parseDataURL(value)
+                case (let mimeType, let data)? = Data.parseDataURL(value)
             {
                 self = .data(mimeType: mimeType, data)
             } else {
@@ -126,7 +126,7 @@ extension Value: Codable {
             try container.encode(value)
         case .string(let value):
             try container.encode(value)
-        case let .data(mimeType, value):
+        case .data(let mimeType, let value):
             try container.encode(value.dataURLEncoded(mimeType: mimeType))
         case .array(let value):
             try container.encode(value)
@@ -149,7 +149,7 @@ extension Value: CustomStringConvertible {
             return value.description
         case .string(let value):
             return value.description
-        case let .data(mimeType, value):
+        case .data(let mimeType, let value):
             return value.dataURLEncoded(mimeType: mimeType)
         case .array(let value):
             return value.description

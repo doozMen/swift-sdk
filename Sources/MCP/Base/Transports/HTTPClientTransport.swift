@@ -275,7 +275,9 @@ public actor HTTPClientTransport: Transport {
         }
     #else
         // Process response with byte stream (macOS, iOS, etc.)
-        private func processResponse(response: URLResponse, stream: URLSession.AsyncBytes)
+        private func processResponse(
+            response: URLResponse, stream: URLSession.AsyncBytes
+        )
             async throws
         {
             guard let httpResponse = response as? HTTPURLResponse else {

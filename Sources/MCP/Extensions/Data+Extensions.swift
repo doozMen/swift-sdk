@@ -3,9 +3,7 @@ import RegexBuilder
 
 extension Data {
     /// Regex pattern for data URLs
-    @inline(__always) private static var dataURLRegex:
-        Regex<(Substring, Substring, Substring?, Substring)>
-    {
+    @inline(__always) private static var dataURLRegex: Regex<(Substring, Substring, Substring?, Substring)> {
         Regex {
             "data:"
             Capture {

@@ -355,7 +355,9 @@ public actor Client {
         /// Adds a request to the batch and prepares its expected response task.
         /// The actual sending happens when the `withBatch` scope completes.
         /// - Returns: A `Task` that will eventually produce the result or throw an error.
-        public func addRequest<M: Method>(_ request: Request<M>) async throws -> Task<
+        public func addRequest<M: Method>(
+            _ request: Request<M>
+        ) async throws -> Task<
             M.Result, Swift.Error
         > {
             requests.append(try AnyRequest(request))
@@ -492,8 +494,7 @@ public actor Client {
     /// - Returns: The server's initialization response containing capabilities and server info
     @available(
         *, deprecated,
-        message:
-            "Initialization now happens automatically during connect. Use connect(transport:) instead."
+        message: "Initialization now happens automatically during connect. Use connect(transport:) instead."
     )
     public func initialize() async throws -> Initialize.Result {
         return try await _initialize()
@@ -526,7 +527,9 @@ public actor Client {
 
     // MARK: - Prompts
 
-    public func getPrompt(name: String, arguments: [String: Value]? = nil) async throws
+    public func getPrompt(
+        name: String, arguments: [String: Value]? = nil
+    ) async throws
         -> (description: String?, messages: [Prompt.Message])
     {
         try validateServerCapability(\.prompts, "Prompts")
@@ -535,7 +538,9 @@ public actor Client {
         return (description: result.description, messages: result.messages)
     }
 
-    public func listPrompts(cursor: String? = nil) async throws
+    public func listPrompts(
+        cursor: String? = nil
+    ) async throws
         -> (prompts: [Prompt], nextCursor: String?)
     {
         try validateServerCapability(\.prompts, "Prompts")
@@ -558,7 +563,9 @@ public actor Client {
         return result.contents
     }
 
-    public func listResources(cursor: String? = nil) async throws -> (
+    public func listResources(
+        cursor: String? = nil
+    ) async throws -> (
         resources: [Resource], nextCursor: String?
     ) {
         try validateServerCapability(\.resources, "Resources")
@@ -578,7 +585,9 @@ public actor Client {
         _ = try await send(request)
     }
 
-    public func listResourceTemplates(cursor: String? = nil) async throws -> (
+    public func listResourceTemplates(
+        cursor: String? = nil
+    ) async throws -> (
         templates: [Resource.Template], nextCursor: String?
     ) {
         try validateServerCapability(\.resources, "Resources")
@@ -594,7 +603,9 @@ public actor Client {
 
     // MARK: - Tools
 
-    public func listTools(cursor: String? = nil) async throws -> (
+    public func listTools(
+        cursor: String? = nil
+    ) async throws -> (
         tools: [Tool], nextCursor: String?
     ) {
         try validateServerCapability(\.tools, "Tools")
@@ -608,7 +619,9 @@ public actor Client {
         return (tools: result.tools, nextCursor: result.nextCursor)
     }
 
-    public func callTool(name: String, arguments: [String: Value]? = nil) async throws -> (
+    public func callTool(
+        name: String, arguments: [String: Value]? = nil
+    ) async throws -> (
         content: [Tool.Content], isError: Bool?
     ) {
         try validateServerCapability(\.tools, "Tools")
@@ -636,7 +649,8 @@ public actor Client {
     /// - SeeAlso: https://modelcontextprotocol.io/docs/concepts/sampling#how-sampling-works
     @discardableResult
     public func withSamplingHandler(
-        _ handler: @escaping @Sendable (CreateSamplingMessage.Parameters) async throws ->
+        _ handler:
+            @escaping @Sendable (CreateSamplingMessage.Parameters) async throws ->
             CreateSamplingMessage.Result
     ) -> Self {
         // Note: This would require extending the client architecture to handle incoming requests from servers.

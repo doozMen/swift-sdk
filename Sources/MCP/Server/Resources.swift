@@ -105,7 +105,7 @@ public enum ListResources: Method {
         public init() {
             self.cursor = nil
         }
-        
+
         public init(cursor: String) {
             self.cursor = cursor
         }
@@ -155,7 +155,7 @@ public enum ListResourceTemplates: Method {
         public init() {
             self.cursor = nil
         }
-        
+
         public init(cursor: String) {
             self.cursor = cursor
         }

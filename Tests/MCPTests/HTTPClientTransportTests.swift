@@ -36,8 +36,7 @@ import Testing
     // MARK: - Mock Handler Registry Actor
 
     actor RequestHandlerStorage {
-        private var requestHandler:
-            (@Sendable (URLRequest) async throws -> (HTTPURLResponse, Data))?
+        private var requestHandler: (@Sendable (URLRequest) async throws -> (HTTPURLResponse, Data))?
 
         func setHandler(
             _ handler: @Sendable @escaping (URLRequest) async throws -> (HTTPURLResponse, Data)
@@ -669,7 +668,7 @@ import Testing
                 // Step 2: Call a tool
                 let toolResult = try await client.callTool(name: "calculator")
                 #expect(toolResult.content.count == 1)
-                if case let .text(text) = toolResult.content[0] {
+                if case .text(let text) = toolResult.content[0] {
                     #expect(text == "42")
                 } else {
                     #expect(Bool(false), "Expected text content")
