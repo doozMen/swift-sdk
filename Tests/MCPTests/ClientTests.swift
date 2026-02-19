@@ -3,7 +3,7 @@ import Testing
 
 @testable import MCP
 
-@Suite("Client Tests")
+@Suite("Client Tests", .timeLimit(.minutes(1)))
 struct ClientTests {
     @Test("Client connect and disconnect")
     func testClientConnectAndDisconnect() async throws {
@@ -345,11 +345,12 @@ struct ClientTests {
 
         let request1 = Ping.request()
         let request2 = Ping.request()
+        nonisolated(unsafe) var resultTask1: Task<Ping.Result, Swift.Error>?
+        nonisolated(unsafe) var resultTask2: Task<Ping.Result, Swift.Error>?
 
-        let (resultTask1, resultTask2) = try await client.withBatch { batch in
-            let task1 = try await batch.addRequest(request1)
-            let task2 = try await batch.addRequest(request2)
-            return (task1, task2)
+        try await client.withBatch { batch in
+            resultTask1 = try await batch.addRequest(request1)
+            resultTask2 = try await batch.addRequest(request2)
         }
 
         // Check if batch message was sent (after initialize and initialized notification)
@@ -380,8 +381,13 @@ struct ClientTests {
         try await transport.queue(batch: [anyResponse1, anyResponse2])
 
         // Wait for results and verify
-        _ = try await resultTask1.value  // Should succeed
-        _ = try await resultTask2.value  // Should succeed
+        guard let task1 = resultTask1, let task2 = resultTask2 else {
+            #expect(Bool(false), "Result tasks not created")
+            return
+        }
+
+        _ = try await task1.value  // Should succeed
+        _ = try await task2.value  // Should succeed
 
         #expect(Bool(true))  // Reaching here means success
 
@@ -420,11 +426,11 @@ struct ClientTests {
         let request1 = Ping.request()  // Success
         let request2 = Ping.request()  // Error
 
-        let resultTasks = try await client.withBatch { batch in
-            [
-                try await batch.addRequest(request1),
-                try await batch.addRequest(request2)
-            ]
+        nonisolated(unsafe) var resultTasks: [Task<Ping.Result, Swift.Error>] = []
+
+        try await client.withBatch { batch in
+            resultTasks.append(try await batch.addRequest(request1))
+            resultTasks.append(try await batch.addRequest(request2))
         }
 
         // Check if batch message was sent (after initialize and initialized notification)

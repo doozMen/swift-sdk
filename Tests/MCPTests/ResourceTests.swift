@@ -10,6 +10,7 @@ struct ResourceTests {
         let resource = Resource(
             name: "test_resource",
             uri: "file://test.txt",
+            title: "Test Resource Title",
             description: "A test resource",
             mimeType: "text/plain",
             metadata: ["key": "value"]
@@ -17,6 +18,7 @@ struct ResourceTests {
 
         #expect(resource.name == "test_resource")
         #expect(resource.uri == "file://test.txt")
+        #expect(resource.title == "Test Resource Title")
         #expect(resource.description == "A test resource")
         #expect(resource.mimeType == "text/plain")
         #expect(resource.metadata?["key"] == "value")
@@ -27,6 +29,7 @@ struct ResourceTests {
         let resource = Resource(
             name: "test_resource",
             uri: "file://test.txt",
+            title: "Test Resource Title",
             description: "Test resource description",
             mimeType: "text/plain",
             metadata: ["key1": "value1", "key2": "value2"]
@@ -40,6 +43,7 @@ struct ResourceTests {
 
         #expect(decoded.name == resource.name)
         #expect(decoded.uri == resource.uri)
+        #expect(decoded.title == resource.title)
         #expect(decoded.description == resource.description)
         #expect(decoded.mimeType == resource.mimeType)
         #expect(decoded.metadata == resource.metadata)

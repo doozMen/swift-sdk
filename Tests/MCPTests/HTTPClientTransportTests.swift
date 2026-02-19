@@ -208,12 +208,12 @@ import Testing
 
             await MockURLProtocol.requestHandlerStorage.setHandler {
                 [testEndpoint] (request: URLRequest) in
-                #expect(request.value(forHTTPHeaderField: "Mcp-Session-Id") == nil)
+                #expect(request.value(forHTTPHeaderField: "MCP-Session-Id") == nil)
                 let response = HTTPURLResponse(
                     url: testEndpoint, statusCode: 200, httpVersion: "HTTP/1.1",
                     headerFields: [
                         "Content-Type": "application/json",
-                        "Mcp-Session-Id": newSessionID,
+                        "MCP-Session-Id": newSessionID,
                     ])!
                 return (response, Data())
             }
@@ -246,12 +246,12 @@ import Testing
             await MockURLProtocol.requestHandlerStorage.setHandler {
                 [testEndpoint] (request: URLRequest) in
                 #expect(request.readBody() == firstMessageData)
-                #expect(request.value(forHTTPHeaderField: "Mcp-Session-Id") == nil)
+                #expect(request.value(forHTTPHeaderField: "MCP-Session-Id") == nil)
                 let response = HTTPURLResponse(
                     url: testEndpoint, statusCode: 200, httpVersion: "HTTP/1.1",
                     headerFields: [
                         "Content-Type": "application/json",
-                        "Mcp-Session-Id": initialSessionID,
+                        "MCP-Session-Id": initialSessionID,
                     ])!
                 return (response, Data())
             }
@@ -261,7 +261,7 @@ import Testing
             await MockURLProtocol.requestHandlerStorage.setHandler {
                 [testEndpoint] (request: URLRequest) in
                 #expect(request.readBody() == secondMessageData)
-                #expect(request.value(forHTTPHeaderField: "Mcp-Session-Id") == initialSessionID)
+                #expect(request.value(forHTTPHeaderField: "MCP-Session-Id") == initialSessionID)
 
                 let response = HTTPURLResponse(
                     url: testEndpoint, statusCode: 200, httpVersion: "HTTP/1.1",
@@ -367,7 +367,7 @@ import Testing
                     url: testEndpoint, statusCode: 200, httpVersion: "HTTP/1.1",
                     headerFields: [
                         "Content-Type": "application/json",
-                        "Mcp-Session-Id": initialSessionID,
+                        "MCP-Session-Id": initialSessionID,
                     ])!
                 return (response, Data())
             }
@@ -386,7 +386,7 @@ import Testing
             // Set up the second handler for the 404 response
             await MockURLProtocol.requestHandlerStorage.setHandler {
                 [testEndpoint, initialSessionID] (request: URLRequest) in
-                #expect(request.value(forHTTPHeaderField: "Mcp-Session-Id") == initialSessionID)
+                #expect(request.value(forHTTPHeaderField: "MCP-Session-Id") == initialSessionID)
                 let response = HTTPURLResponse(
                     url: testEndpoint, statusCode: 404, httpVersion: "HTTP/1.1", headerFields: nil)!
                 return (response, Data("Not Found".utf8))
@@ -449,7 +449,7 @@ import Testing
                     #expect(request.httpMethod == "GET")
                     #expect(request.value(forHTTPHeaderField: "Accept") == "text/event-stream")
                     #expect(
-                        request.value(forHTTPHeaderField: "Mcp-Session-Id") == "test-session-123")
+                        request.value(forHTTPHeaderField: "MCP-Session-Id") == "test-session-123")
 
                     let response = HTTPURLResponse(
                         url: testEndpoint, statusCode: 200, httpVersion: "HTTP/1.1",
@@ -511,7 +511,7 @@ import Testing
                     #expect(request.httpMethod == "GET")
                     #expect(request.value(forHTTPHeaderField: "Accept") == "text/event-stream")
                     #expect(
-                        request.value(forHTTPHeaderField: "Mcp-Session-Id") == "test-session-123")
+                        request.value(forHTTPHeaderField: "MCP-Session-Id") == "test-session-123")
 
                     let response = HTTPURLResponse(
                         url: testEndpoint, statusCode: 200, httpVersion: "HTTP/1.1",
@@ -719,6 +719,40 @@ import Testing
                 try await transport.connect()
 
                 let messageData = #"{"jsonrpc":"2.0","method":"test","id":5}"#.data(using: .utf8)!
+
+                try await transport.send(messageData)
+                await transport.disconnect()
+            }
+
+            @Test("Send With Protocol Version Header", .httpClientTransportSetup)
+            func testProtocolVersionHeader() async throws {
+                let configuration = URLSessionConfiguration.ephemeral
+                configuration.protocolClasses = [MockURLProtocol.self]
+
+                let protocolVersion = "2025-11-25"
+                let transport = HTTPClientTransport(
+                    endpoint: testEndpoint,
+                    configuration: configuration,
+                    streaming: false,
+                    protocolVersion: protocolVersion,
+                    logger: nil
+                )
+                try await transport.connect()
+
+                let messageData = #"{"jsonrpc":"2.0","method":"test","id":6}"#.data(using: .utf8)!
+
+                await MockURLProtocol.requestHandlerStorage.setHandler {
+                    [testEndpoint, protocolVersion] (request: URLRequest) in
+                    // Verify the protocol version header is present
+                    #expect(
+                        request.value(forHTTPHeaderField: "MCP-Protocol-Version")
+                            == protocolVersion)
+
+                    let response = HTTPURLResponse(
+                        url: testEndpoint, statusCode: 200, httpVersion: "HTTP/1.1",
+                        headerFields: ["Content-Type": "application/json"])!
+                    return (response, Data())
+                }
 
                 try await transport.send(messageData)
                 await transport.disconnect()
