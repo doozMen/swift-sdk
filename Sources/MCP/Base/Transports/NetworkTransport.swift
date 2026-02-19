@@ -511,8 +511,10 @@ import Logging
             var messageWithNewline = message
             messageWithNewline.append(UInt8(ascii: "\n"))
 
-            // Use a local actor-isolated variable to track continuation state
-            var sendContinuationResumed = false
+            // Use nonisolated(unsafe) to suppress false-positive data race warning.
+            // This is safe because the continuation is only resumed once via the
+            // @MainActor-isolated closure, ensuring single-threaded access.
+            nonisolated(unsafe) var sendContinuationResumed = false
 
             try await withCheckedThrowingContinuation {
                 [weak self] (continuation: CheckedContinuation<Void, Swift.Error>) in
@@ -747,7 +749,7 @@ import Logging
         /// - Returns: The received data chunk
         /// - Throws: Network errors or transport failures
         private func receiveData() async throws -> Data {
-            var receiveContinuationResumed = false
+            nonisolated(unsafe) var receiveContinuationResumed = false
 
             return try await withCheckedThrowingContinuation {
                 [weak self] (continuation: CheckedContinuation<Data, Swift.Error>) in
